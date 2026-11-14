@@ -365,6 +365,39 @@ def build_features(
 
     return dataset
 
+def validate_dataset(dataset):
+    keys = ["appid", "month"]
+    if dataset.empty or dataset[keys].isna().any().any():
+        raise ValueError("Витрина пуста или содержит пропуски в appid и month")
+    if dataset.duplicated(keys).any():
+        raise ValueError("В витрине повторяются пары appid и month")
+
+    ordered = dataset.sort_values(keys)
+    by_game = ordered.groupby("appid")
+    activity = by_game["Avg_players"]
+
+    previous_month = by_game["month"].shift(1)
+    consecutive = ordered["month"].eq(previous_month + pd.offsets.MonthBegin(1))
+    if (previous_month.notna() & ~consecutive).any():
+        raise ValueError("В календарной сетке пропущен месяц")
+
+    expected = {"target_next_month": activity.shift(-1)}
+    for lag in (1, 3, 6):
+        expected[f"avg_players_lag_{lag}"] = activity.shift(lag)
+    for window in (3, 6):
+        expected[f"avg_players_roll_{window}"] = activity.transform(
+            lambda values: values.shift(1).rolling(window).mean()
+        )
+
+    for column, values in expected.items():
+        try:
+            pd.testing.assert_series_equal(
+                ordered[column], values, check_names=False
+            )
+        except AssertionError as error:
+            raise ValueError(f"Неверный временной сдвиг в {column}") from error
+
+    print(f"Проверка витрины пройдена: {len(dataset)} строк")
 
 def make_model_dataset(dataset):
     print("Подготовка ML-выборки...")
@@ -487,6 +520,8 @@ def main():
         reviews
     )
 
+    validate_dataset(dataset)
+    
     model_dataset = make_model_dataset(
         dataset
     )
