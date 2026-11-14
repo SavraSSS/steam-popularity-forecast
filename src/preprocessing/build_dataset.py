@@ -204,37 +204,28 @@ def prepare_games(games_df, player_ids):
 def prepare_reviews(reviews_df, player_ids):
     print("Обработка REVIEWS...")
 
-    reviews = reviews_df.copy()
-
+    reviews = reviews_df.loc[reviews_df["appid"].isin(player_ids)].copy()
     reviews = reviews.drop_duplicates()
 
-    reviews["review_date"] = pd.to_datetime(
-        reviews["unix_timestamp_created"],
-        unit="s",
-        errors="coerce"
+    created_at = pd.to_datetime(
+        reviews["unix_timestamp_created"], unit="s", errors="coerce"
     )
-
-    reviews = reviews[
-        reviews["appid"].isin(player_ids)
-    ].copy()
-    reviews = reviews[
-        reviews["appid"].isin(player_ids)
-    ].copy()
+    updated_at = pd.to_datetime(
+        reviews["unix_timestamp_updated"].where(
+            reviews["unix_timestamp_updated"] > 0
+        ),
+        unit="s",
+        errors="coerce",
+    )
+    reviews["review_date"] = created_at.where(
+        updated_at.isna() | (updated_at <= created_at),
+        updated_at,
+    )
 
     text = reviews["review"].fillna("").astype(str)
     reviews["review_word_count"] = text.str.count(r"\b\w+\b")
     reviews["review_exclamation_count"] = text.str.count("!")
-
-    reviews["month"] = (
-        reviews["review_date"]
-        .dt.to_period("M")
-        .dt.to_timestamp()
-    )
-    reviews["month"] = (
-        reviews["review_date"]
-        .dt.to_period("M")
-        .dt.to_timestamp()
-    )
+    reviews["month"] = reviews["review_date"].dt.to_period("M").dt.to_timestamp()
 
     reviews["voted_up"] = (
         reviews["voted_up"]
