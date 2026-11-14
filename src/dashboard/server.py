@@ -2,6 +2,7 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import os
 import pandas as pd
 
 from datetime import datetime, timezone
@@ -73,8 +74,15 @@ def main():
     if not SNAPSHOT.exists():
         publish_results()
 
-    with ThreadingHTTPServer(("127.0.0.1", 8000), DashboardHandler) as server:
-        print("Панель доступна по адресу http://127.0.0.1:8000", flush=True)
+    try:
+        port = int(os.environ.get("PAS_DASHBOARD_PORT", "8000"))
+        if not 1 <= port <= 65535:
+            raise ValueError
+    except ValueError:
+        raise SystemExit("PAS_DASHBOARD_PORT должен быть целым числом от 1 до 65535")
+
+    with ThreadingHTTPServer(("127.0.0.1", port), DashboardHandler) as server:
+        print(f"Панель доступна по адресу http://127.0.0.1:{port}", flush=True)
         server.serve_forever()
 
 
