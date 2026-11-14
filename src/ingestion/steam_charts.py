@@ -5,6 +5,9 @@ from html.parser import HTMLParser
 import pandas as pd
 import requests
 
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -49,8 +52,17 @@ class ActivityTableParser(HTMLParser):
 
 def fetch_monthly_activity(appid):
     url = f"https://steamcharts.com/app/{appid}"
-    response = requests.get(url, timeout=(5, 20))
-    response.raise_for_status()
+    retries = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods={"GET"},
+        respect_retry_after_header=True,
+    )
+    with requests.Session() as session:
+        session.mount("https://", HTTPAdapter(max_retries=retries))
+        response = session.get(url, timeout=(5, 20))
+        response.raise_for_status()
 
     parser = ActivityTableParser()
     parser.feed(response.text)
@@ -111,6 +123,29 @@ def save_monthly_activity(history):
             """, records)
             return result.rowcount
 
+def log_load(appid, started_at, status, received, added, detail=""):
+    DATABASE.parent.mkdir(parents=True, exist_ok=True)
+
+    with closing(sqlite3.connect(DATABASE)) as connection:
+        with connection:
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS load_log (
+                    id INTEGER PRIMARY KEY,
+                    started_at TEXT NOT NULL,
+                    appid INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    received INTEGER NOT NULL,
+                    added INTEGER NOT NULL,
+                    detail TEXT NOT NULL
+                )
+            """)
+            connection.execute("""
+                INSERT INTO load_log
+                    (started_at, appid, status, received, added, detail)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (started_at, appid, status, received, added, detail))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("appid", type=int)
@@ -119,15 +154,20 @@ def main():
     if args.appid <= 0:
         parser.error("appid должен быть положительным")
 
+    started_at = datetime.now(timezone.utc).isoformat()
     try:
         history = fetch_monthly_activity(args.appid)
     except (requests.RequestException, ValueError) as error:
+        if args.save:
+            log_load(args.appid, started_at, "error", 0, 0, str(error))
         parser.exit(1, f"Ошибка загрузки: {error}\n")
 
     print(f"Месяцев получено: {len(history)}")
     print(history.tail(5).to_string(index=False))
+
     if args.save:
         added = save_monthly_activity(history)
+        log_load(args.appid, started_at, "ok", len(history), added)
         print(f"Новых месяцев сохранено: {added}")
 
 
