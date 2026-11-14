@@ -5,14 +5,94 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Прогноз активности игр Steam</title>
   <style>
-    body { margin: 2rem auto; width: min(94%, 920px); font: 16px system-ui, sans-serif; }
-    section { margin-block: 2rem; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: .55rem; border-bottom: 1px solid #dce2e8; text-align: right; }
-    th:first-child, td:first-child { text-align: left; }
-    th { background: #edf3f8; }
-    select { max-width: 100%; padding: .4rem; }
-    .table-wrap { overflow-x: auto; }
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      width: min(94%, 1100px);
+      margin: 2rem auto 3rem;
+      background: #eef1f4;
+      color: #253141;
+      font: 16px/1.5 system-ui, sans-serif;
+    }
+
+    h1 {
+      margin: 0 0 .35rem;
+      font-size: clamp(1.7rem, 4vw, 2.4rem);
+    }
+
+    #status {
+      margin: 0 0 1.5rem;
+      color: #526176;
+    }
+
+    section {
+      margin: 1rem 0;
+      padding: clamp(1rem, 3vw, 1.5rem);
+      background: #fff;
+      border: 1px solid #dce2e8;
+      border-radius: 12px;
+    }
+
+    h2 {
+      margin: 0 0 .9rem;
+      font-size: 1.2rem;
+    }
+
+    section p {
+      color: #526176;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+    }
+
+    th, td {
+      padding: .6rem .75rem;
+      border-bottom: 1px solid #e3e8ee;
+      text-align: right;
+    }
+
+    th:first-child, td:first-child {
+      text-align: left;
+    }
+
+    th {
+      background: #e9eef4;
+      color: #344861;
+      white-space: nowrap;
+    }
+
+    tbody tr:nth-child(even) {
+      background: #f6f8fa;
+    }
+
+    label {
+      margin-right: .4rem;
+      font-weight: 600;
+    }
+
+    select {
+      max-width: 100%;
+      padding: .45rem .65rem;
+      border: 1px solid #a8b5c4;
+      border-radius: 6px;
+      background: #fff;
+      color: inherit;
+      font: inherit;
+    }
+
+    select:focus-visible {
+      outline: 2px solid #2864bd;
+      outline-offset: 2px;
+    }
   </style>
 </head>
 <body>
