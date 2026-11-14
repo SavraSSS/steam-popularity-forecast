@@ -33,6 +33,7 @@ def main():
             "--save",
         )
         run_step("Пересборка витрины", "src.preprocessing.build_dataset")
+        run_step("Подбор моделей на валидации", "src.modeling.search_models")
         run_step("Расчёт тестовых метрик", "src.modeling.compare_models")
         run_step("Прогноз на следующий месяц", "src.modeling.forecast_next_month")
     except subprocess.CalledProcessError as error:

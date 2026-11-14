@@ -31,16 +31,23 @@ def build_model(model_name, params, seed=SEED):
     raise ValueError(f"Неизвестная модель: {model_name}")
 
 
-def evaluate_config(train, validation, model_name, params, include_text, seed=SEED):
+def predict_config(train, evaluation, model_name, params, include_text, seed=SEED):
     train_features = make_features(train, include_text, include_month=False)
-    validation_features = make_features(validation, include_text, include_month=False)
+    evaluation_features = make_features(evaluation, include_text, include_month=False)
 
     model = build_model(model_name, params, seed)
     train_change = np.log1p(train[TARGET]) - np.log1p(train["Avg_players"])
     model.fit(train_features, train_change)
 
-    change = model.predict(validation_features)
-    predicted = np.expm1(np.log1p(validation["Avg_players"]) + change).clip(lower=0)
+    change = model.predict(evaluation_features)
+    current = np.log1p(evaluation["Avg_players"])
+    return np.expm1(current + change).clip(lower=0)
+
+
+def evaluate_config(train, validation, model_name, params, include_text, seed=SEED):
+    predicted = predict_config(
+        train, validation, model_name, params, include_text, seed
+    )
     return calculate_metrics(validation[TARGET], predicted)
 
 def snapshot_dataset():

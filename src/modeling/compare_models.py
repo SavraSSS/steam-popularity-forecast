@@ -1,27 +1,45 @@
-import numpy as np
+import json
+
 import pandas as pd
+
 from .evaluate_baseline import ROOT, TARGET, calculate_metrics, load_splits
-from .train_forest import build_model as build_forest
-from .train_ridge import FEATURES, build_model as build_ridge
+from .search_models import JOURNAL, PARAMETERS, SEED, predict_config, snapshot_dataset
 
 
-def evaluate(name, data, predicted):
-    mae, rmse = calculate_metrics(data[TARGET], predicted)
-    print(f"{name}: rows={len(data)}, MAE={mae:.2f}, RMSE={rmse:.2f}")
-    return {"model": name, "rows": len(data), "mae": mae, "rmse": rmse}
+def load_best_configs(version):
+    records = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in JOURNAL.glob("*.json")
+    ]
+    best = {}
+    for model, parameters in PARAMETERS.items():
+        candidates = [
+            row for row in records
+            if row["dataset_sha256"] == version
+            and row["model"] == model
+            and row["seed"] == SEED
+            and row["params"] in parameters
+        ]
+        if not candidates:
+            raise ValueError(
+                f"Для {model} нет экспериментов на текущей выборке. "
+                "Сначала запусти python -m src.modeling.search_models"
+            )
+        best[model] = min(candidates, key=lambda row: (row["mae"], row["id"]))
+    return best
+
+
+def evaluate(name, actual, predicted):
+    mae, rmse = calculate_metrics(actual, predicted)
+    print(f"{name}: rows={len(actual)}, MAE={mae:.2f}, RMSE={rmse:.2f}")
+    return {"model": name, "rows": len(actual), "mae": mae, "rmse": rmse}
 
 
 def main():
-    train, validation, test = load_splits()
+    version, snapshot = snapshot_dataset()
+    best = load_best_configs(version)
+    train, validation, test = load_splits(snapshot)
     development = pd.concat([train, validation])
-
-    train_features = np.log1p(development[FEATURES])
-    train_change = (
-        np.log1p(development[TARGET])
-        - np.log1p(development["Avg_players"])
-    )
-    test_features = np.log1p(test[FEATURES])
-    current_players = np.log1p(test["Avg_players"])
 
     predictions = test[["appid", "Game_Name", "month", TARGET]].copy()
     predictions = predictions.rename(columns={TARGET: "actual_players"})
@@ -29,20 +47,17 @@ def main():
     predictions["baseline"] = test["Avg_players"]
 
     print(f"Training + validation rows: {len(development)}")
-    metrics = [evaluate("Baseline", test, predictions["baseline"])]
+    metrics = [evaluate("Baseline", test[TARGET], predictions["baseline"])]
 
-    for name, column, build_model in (
-        ("Ridge", "ridge", build_ridge),
-        ("Random forest", "random_forest", build_forest),
-    ):
-        model = build_model()
-        model.fit(train_features, train_change)
-        predicted_change = model.predict(test_features)
-        predictions[column] = np.expm1(current_players + predicted_change).clip(lower=0)
-        metrics.append(evaluate(name, test, predictions[column]))
+    for model, label in (("ridge", "Ridge"), ("random_forest", "Random forest")):
+        config = best[model]
+        print(f"{label}: experiment={config['id']}, validation MAE={config['mae']:.2f}")
+        predictions[model] = predict_config(
+            development, test, model, config["params"], config["text"], config["seed"]
+        )
+        metrics.append(evaluate(label, test[TARGET], predictions[model]))
 
     output_dir = ROOT / "artifacts"
-    output_dir.mkdir(exist_ok=True)
     predictions.to_csv(output_dir / "test_predictions.csv", index=False)
     pd.DataFrame(metrics).to_csv(output_dir / "test_metrics.csv", index=False)
 
