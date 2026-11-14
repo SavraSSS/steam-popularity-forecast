@@ -33,6 +33,11 @@
     <h2>Факт и прогноз по игре</h2>
     <label for="game">Игра</label>
     <select id="game"></select>
+    <canvas id="forecast-chart" width="920" height="300"
+        style="display: block; width: 100%; height: auto; margin-block: 1rem;"
+        role="img" aria-label="Средний онлайн по месяцам, факт и прогнозы">
+</canvas>
+<p>Чёрный — факт · Синий — базовый прогноз · Зелёный — Ridge · Фиолетовый — случайный лес</p>
     <div class="table-wrap"><table id="predictions"></table></div>
   </section>
 
@@ -63,7 +68,72 @@
         }
       }
     }
+    function drawForecastChart(rows) {
+  const canvas = byId("forecast-chart");
+  const ctx = canvas.getContext("2d");
+  const { width, height } = canvas;
+  ctx.clearRect(0, 0, width, height);
+  if (rows.length === 0) return;
 
+  const series = [
+    ["actual_players", "#202124"],
+    ["baseline", "#2864bd"],
+    ["ridge", "#287849"],
+    ["random_forest", "#873caf"],
+  ];
+
+  const max = Math.max(1, ...rows.flatMap((row) =>
+    series.map(([key]) => row[key])
+  ));
+  const left = 90;
+  const right = width - 45;
+  const top = 20;
+  const bottom = height - 42;
+  const x = (index) => rows.length === 1
+    ? (left + right) / 2
+    : left + index * (right - left) / (rows.length - 1);
+  const y = (value) => bottom - value / max * (bottom - top);
+
+  ctx.font = "14px system-ui";
+  ctx.fillStyle = "#374151";
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "#dce2e8";
+  ctx.textAlign = "right";
+
+  for (let i = 0; i <= 4; i++) {
+    const value = max * i / 4;
+    ctx.beginPath();
+    ctx.moveTo(left, y(value));
+    ctx.lineTo(right, y(value));
+    ctx.stroke();
+    ctx.fillText(fmt.format(Math.round(value)), left - 8, y(value) + 5);
+  }
+
+  ctx.textAlign = "center";
+  rows.forEach((row, index) => {
+    ctx.fillText(row.forecast_month.slice(0, 7), x(index), bottom + 24);
+  });
+
+  for (const [key, color] of series) {
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    rows.forEach((row, index) => {
+      const px = x(index);
+      const py = y(row[key]);
+      if (index === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+
+    rows.forEach((row, index) => {
+      ctx.beginPath();
+      ctx.arc(x(index), y(row[key]), 3, 0, 2 * Math.PI);
+      ctx.fill();
+    });
+  }
+}
     async function start() {
       const response = await fetch("/data.json");
       if (!response.ok) throw new Error("Не удалось загрузить результаты");
@@ -91,6 +161,7 @@
         const rows = predictions
           .filter((row) => String(row.appid) === select.value)
           .sort((a, b) => a.forecast_month.localeCompare(b.forecast_month));
+	drawForecastChart(rows);
 
         renderTable("predictions", ["Месяц", "Факт", "Базовый", "Ridge", "Случайный лес"],
           rows.map((row) => [
