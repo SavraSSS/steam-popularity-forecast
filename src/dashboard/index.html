@@ -137,10 +137,10 @@
     async function start() {
       const response = await fetch("/data.json");
       if (!response.ok) throw new Error("Не удалось загрузить результаты");
-      const { ranking, metrics, predictions } = await response.json();
+            const { ranking, metrics, predictions, published_at } = await response.json();
       const month = ranking[0].forecast_month.slice(0, 7);
-      byId("status").textContent = `Месяц прогноза ${month} · Игр в рейтинге ${ranking.length}`;
-
+      const updated = new Date(published_at).toLocaleString("ru-RU");
+      byId("status").textContent = `Месяц прогноза ${month} · Игр в рейтинге ${ranking.length} · Расчёт обновлён ${updated}`;
       renderTable("ranking", ["Игра", "Прогноз, игроков"],
         ranking.slice(0, 10).map((row) => [
           row.Game_Name, fmt.format(row.forecast_players),
@@ -152,9 +152,14 @@
         ]));
 
       const select = byId("game");
+      const previousGame = select.value;
+      select.replaceChildren();
       const games = new Map(predictions.map((row) => [row.appid, row.Game_Name]));
       for (const [appid, name] of [...games].sort((a, b) => a[1].localeCompare(b[1]))) {
         select.add(new Option(name, appid));
+      }
+      if ([...select.options].some((option) => option.value === previousGame)) {
+        select.value = previousGame;
       }
 
       function showGame() {
@@ -171,13 +176,21 @@
           ]));
       }
 
-      select.addEventListener("change", showGame);
+      select.onchange = showGame;
       showGame();
     }
 
-    start().catch((error) => {
-      byId("status").textContent = error.message;
-    });
+        async function refresh() {
+      try {
+        await start();
+      } catch (error) {
+        byId("status").textContent = `Ошибка обновления: ${error.message}`;
+      } finally {
+        setTimeout(refresh, 30000);
+      }
+    }
+
+    refresh();
   </script>
 </body>
 </html>

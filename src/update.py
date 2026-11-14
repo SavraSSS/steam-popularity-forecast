@@ -2,7 +2,7 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
-
+from src.dashboard.server import publish_results
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -37,7 +37,7 @@ def main():
         run_step("Прогноз на следующий месяц", "src.modeling.forecast_next_month")
     except subprocess.CalledProcessError as error:
         parser.exit(error.returncode, "\nОбновление прервано. См. ошибку выше.\n")
-
+    publish_results()
     print("\nОбновление завершено.")
 
 
