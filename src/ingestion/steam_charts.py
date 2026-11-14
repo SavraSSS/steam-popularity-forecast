@@ -5,6 +5,10 @@ from html.parser import HTMLParser
 import pandas as pd
 import requests
 
+import sqlite3
+from contextlib import closing
+from pathlib import Path
+
 MONTHS = {
     name: number
     for number, name in enumerate(
@@ -14,6 +18,8 @@ MONTHS = {
     )
 }
 
+ROOT = Path(__file__).resolve().parents[2]
+DATABASE = ROOT / "data" / "raw" / "steam_charts.sqlite"
 
 class ActivityTableParser(HTMLParser):
     def __init__(self):
@@ -80,10 +86,35 @@ def fetch_monthly_activity(appid):
 
     return pd.DataFrame(records).sort_values("month").reset_index(drop=True)
 
+def save_monthly_activity(history):
+    DATABASE.parent.mkdir(parents=True, exist_ok=True)
+    records = [
+        (int(row.appid), row.month.isoformat(), float(row.Avg_players), int(row.Peak_Players))
+        for row in history.itertuples(index=False)
+    ]
+
+    with closing(sqlite3.connect(DATABASE)) as connection:
+        with connection:
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS monthly_activity (
+                    appid INTEGER NOT NULL,
+                    month TEXT NOT NULL,
+                    avg_players REAL NOT NULL,
+                    peak_players INTEGER NOT NULL,
+                    PRIMARY KEY (appid, month)
+                )
+            """)
+            result = connection.executemany("""
+                INSERT INTO monthly_activity (appid, month, avg_players, peak_players)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (appid, month) DO NOTHING
+            """, records)
+            return result.rowcount
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("appid", type=int)
+    parser.add_argument("--save", action="store_true", help="Сохранить историю в SQLite")
     args = parser.parse_args()
     if args.appid <= 0:
         parser.error("appid должен быть положительным")
@@ -95,6 +126,9 @@ def main():
 
     print(f"Месяцев получено: {len(history)}")
     print(history.tail(5).to_string(index=False))
+    if args.save:
+        added = save_monthly_activity(history)
+        print(f"Новых месяцев сохранено: {added}")
 
 
 if __name__ == "__main__":
