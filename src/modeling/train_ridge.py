@@ -15,11 +15,13 @@ FEATURES = [
     "avg_players_roll_6",
 ]
 
+def build_model():
+    return make_pipeline(StandardScaler(), Ridge(alpha=20))
 
 def main():
     train, validation, _ = load_splits()
 
-    model = make_pipeline(StandardScaler(), Ridge(alpha=20))
+    model = build_model()
     train_change = np.log1p(train[TARGET]) - np.log1p(train["Avg_players"])
     model.fit(np.log1p(train[FEATURES]), train_change)
 

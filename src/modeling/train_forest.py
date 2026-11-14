@@ -4,15 +4,17 @@ from sklearn.ensemble import RandomForestRegressor
 from .evaluate_baseline import TARGET, calculate_metrics, load_splits
 from .train_ridge import FEATURES
 
-
-def main():
-    train, validation, _ = load_splits()
-
-    model = RandomForestRegressor(
+def build_model():
+    return RandomForestRegressor(
         n_estimators=100,
         min_samples_leaf=20,
         random_state=42,
     )
+
+def main():
+    train, validation, _ = load_splits()
+
+    model = build_model()
     train_change = np.log1p(train[TARGET]) - np.log1p(train["Avg_players"])
     model.fit(np.log1p(train[FEATURES]), train_change)
 
