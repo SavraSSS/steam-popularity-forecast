@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Прогноз активности игр Steam</title>
+  <style>
+    body { margin: 2rem auto; width: min(94%, 920px); font: 16px system-ui, sans-serif; }
+    section { margin-block: 2rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .55rem; border-bottom: 1px solid #dce2e8; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    th { background: #edf3f8; }
+    select { max-width: 100%; padding: .4rem; }
+    .table-wrap { overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>Прогноз активности игр Steam</h1>
+  <p id="status" role="status">Загрузка…</p>
+
+  <section>
+    <h2>Первые 10 игр по прогнозу</h2>
+    <div class="table-wrap"><table id="ranking"></table></div>
+  </section>
+
+  <section>
+    <h2>Качество на тестовой выборке</h2>
+    <div class="table-wrap"><table id="metrics"></table></div>
+  </section>
+
+  <section>
+    <h2>Факт и прогноз по игре</h2>
+    <label for="game">Игра</label>
+    <select id="game"></select>
+    <div class="table-wrap"><table id="predictions"></table></div>
+  </section>
+
+  <script>
+    const byId = (id) => document.getElementById(id);
+    const fmt = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
+    const modelNames = {
+      Baseline: "Базовый прогноз",
+      Ridge: "Ridge",
+      "Random forest": "Случайный лес",
+    };
+
+    function renderTable(id, headers, rows) {
+      const table = byId(id);
+      table.replaceChildren();
+      const header = table.createTHead().insertRow();
+      for (const label of headers) {
+        const cell = document.createElement("th");
+        cell.scope = "col";
+        cell.textContent = label;
+        header.append(cell);
+      }
+      const body = table.createTBody();
+      for (const values of rows) {
+        const row = body.insertRow();
+        for (const value of values) {
+          row.insertCell().textContent = value;
+        }
+      }
+    }
+
+    async function start() {
+      const response = await fetch("/data.json");
+      if (!response.ok) throw new Error("Не удалось загрузить результаты");
+      const { ranking, metrics, predictions } = await response.json();
+      const month = ranking[0].forecast_month.slice(0, 7);
+      byId("status").textContent = `Месяц прогноза ${month} · Игр в рейтинге ${ranking.length}`;
+
+      renderTable("ranking", ["Игра", "Прогноз, игроков"],
+        ranking.slice(0, 10).map((row) => [
+          row.Game_Name, fmt.format(row.forecast_players),
+        ]));
+
+      renderTable("metrics", ["Модель", "Наблюдений", "MAE, игроков", "RMSE, игроков"],
+        metrics.map((row) => [
+          modelNames[row.model], row.rows, fmt.format(row.mae), fmt.format(row.rmse),
+        ]));
+
+      const select = byId("game");
+      const games = new Map(predictions.map((row) => [row.appid, row.Game_Name]));
+      for (const [appid, name] of [...games].sort((a, b) => a[1].localeCompare(b[1]))) {
+        select.add(new Option(name, appid));
+      }
+
+      function showGame() {
+        const rows = predictions
+          .filter((row) => String(row.appid) === select.value)
+          .sort((a, b) => a.forecast_month.localeCompare(b.forecast_month));
+
+        renderTable("predictions", ["Месяц", "Факт", "Базовый", "Ridge", "Случайный лес"],
+          rows.map((row) => [
+            row.forecast_month.slice(0, 7),
+            ...[row.actual_players, row.baseline, row.ridge, row.random_forest]
+              .map((value) => fmt.format(value)),
+          ]));
+      }
+
+      select.addEventListener("change", showGame);
+      showGame();
+    }
+
+    start().catch((error) => {
+      byId("status").textContent = error.message;
+    });
+  </script>
+</body>
+</html>
