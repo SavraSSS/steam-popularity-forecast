@@ -217,7 +217,19 @@ def prepare_reviews(reviews_df, player_ids):
     reviews = reviews[
         reviews["appid"].isin(player_ids)
     ].copy()
+    reviews = reviews[
+        reviews["appid"].isin(player_ids)
+    ].copy()
 
+    text = reviews["review"].fillna("").astype(str)
+    reviews["review_word_count"] = text.str.count(r"\b\w+\b")
+    reviews["review_exclamation_count"] = text.str.count("!")
+
+    reviews["month"] = (
+        reviews["review_date"]
+        .dt.to_period("M")
+        .dt.to_timestamp()
+    )
     reviews["month"] = (
         reviews["review_date"]
         .dt.to_period("M")
@@ -236,7 +248,9 @@ def prepare_reviews(reviews_df, player_ids):
             review_count=("review", "size"),
             positive_share=("voted_up", "mean"),
             avg_playtime=("playtime_forever", "mean"),
-            avg_votes_up=("votes_up", "mean")
+            avg_votes_up=("votes_up", "mean"),
+            mean_review_words=("review_word_count", "mean"),
+            mean_review_exclamations=("review_exclamation_count", "mean")
         )
         .reset_index()
     )
