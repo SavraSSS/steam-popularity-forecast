@@ -8,8 +8,8 @@ DATASET = ROOT / "data" / "processed" / "model_dataset.csv"
 TARGET = "target_next_month"
 
 
-def load_splits():
-    data = pd.read_csv(DATASET, parse_dates=["month"])
+def load_splits(dataset_path=DATASET):
+    data = pd.read_csv(dataset_path, parse_dates=["month"])
     forecast_month = data["month"] + pd.offsets.MonthBegin(1)
 
     validation_start = pd.Timestamp("2020-01-01")
