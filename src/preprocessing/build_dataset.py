@@ -4,6 +4,11 @@ import csv
 import kagglehub
 import pandas as pd
 
+import sqlite3
+from contextlib import closing
+
+from src.ingestion.steam_charts import DATABASE
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
@@ -405,10 +410,51 @@ def save_data(dataset, model_dataset):
     print(model_path)
 
 
+def extend_player_history(player):
+    if not DATABASE.exists():
+        return player
+
+    with closing(sqlite3.connect(DATABASE)) as connection:
+        monthly = pd.read_sql_query(
+            """
+            SELECT appid, month, avg_players AS Avg_players,
+                   peak_players AS Peak_Players
+            FROM monthly_activity
+            ORDER BY appid, month
+            """,
+            connection,
+            parse_dates=["month"],
+        )
+
+    keys = ["appid", "month"]
+    archive_keys = pd.MultiIndex.from_frame(player[keys])
+    monthly_keys = pd.MultiIndex.from_frame(monthly[keys])
+    new_months = monthly.loc[~monthly_keys.isin(archive_keys)].copy()
+
+    print(f"Месяцев добавлено из Steam Charts: {len(new_months)}")
+    if new_months.empty:
+        return player
+
+    names = (
+        player.dropna(subset=["Game_Name"])
+        .sort_values("month")
+        .drop_duplicates("appid", keep="last")
+        .set_index("appid")["Game_Name"]
+    )
+    new_months["Game_Name"] = new_months["appid"].map(names)
+    new_months["Game_Name"] = new_months["Game_Name"].fillna(
+        "Steam app " + new_months["appid"].astype(str)
+    )
+    new_months["Date"] = new_months["month"]
+    new_months["URL"] = "https://steamcharts.com/app/" + new_months["appid"].astype(str)
+
+    return pd.concat([player, new_months], ignore_index=True)
+
 def main():
     player_df, games_df, reviews_df = load_data()
 
     player = prepare_player(player_df)
+    player = extend_player_history(player)
 
     player_ids = set(
         player["appid"]
