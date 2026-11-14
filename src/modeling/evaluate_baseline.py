@@ -14,12 +14,15 @@ def load_splits():
 
     validation_start = pd.Timestamp("2020-01-01")
     test_start = pd.Timestamp("2021-01-01")
+    test_end = pd.Timestamp("2021-10-01")
 
     train = data.loc[forecast_month < validation_start]
     validation = data.loc[forecast_month.between(
         validation_start, test_start, inclusive="left"
     )]
-    test = data.loc[forecast_month >= test_start]
+    test = data.loc[forecast_month.between(
+        test_start, test_end, inclusive="left"
+    )]
 
     if train.empty or validation.empty or test.empty:
         raise ValueError("Одна из частей временной выборки пуста")
