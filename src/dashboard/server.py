@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from tempfile import NamedTemporaryFile
 
 from src.modeling.evaluate_baseline import ROOT
+from src.modeling.search_models import JOURNAL
 
 
 PAGE = Path(__file__).with_name("index.html")
@@ -25,6 +26,14 @@ def load_results():
     for key, filename in files.items():
         frame = pd.read_csv(ARTIFACTS / filename)
         results[key] = json.loads(frame.to_json(orient="records"))
+
+    experiments = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in JOURNAL.glob("*.json")
+    ]
+    results["experiments"] = sorted(
+        experiments, key=lambda row: (row["mae"], row["id"])
+    )
     results["published_at"] = datetime.now(timezone.utc).isoformat()
     return json.dumps(results, ensure_ascii=False).encode("utf-8")
 

@@ -41,6 +41,12 @@
     <div class="table-wrap"><table id="predictions"></table></div>
   </section>
 
+  <section>
+    <h2>Журнал экспериментов</h2>
+    <p id="experiment-status"></p>
+    <div class="table-wrap"><table id="experiments"></table></div>
+  </section>
+
   <script>
     const byId = (id) => document.getElementById(id);
     const fmt = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
@@ -137,7 +143,9 @@
     async function start() {
       const response = await fetch("/data.json");
       if (!response.ok) throw new Error("Не удалось загрузить результаты");
-            const { ranking, metrics, predictions, published_at } = await response.json();
+            const {
+        	ranking, metrics, predictions, published_at, experiments = [],
+      		} = await response.json();
       const month = ranking[0].forecast_month.slice(0, 7);
       const updated = new Date(published_at).toLocaleString("ru-RU");
       byId("status").textContent = `Месяц прогноза ${month} · Игр в рейтинге ${ranking.length} · Расчёт обновлён ${updated}`;
@@ -150,7 +158,22 @@
         metrics.map((row) => [
           modelNames[row.model], row.rows, fmt.format(row.mae), fmt.format(row.rmse),
         ]));
+	
+      byId("experiment-status").textContent = experiments.length
+        ? "MAE и RMSE рассчитаны на валидации. ID можно использовать для повтора."
+        : "Журнал пуст. Запусти подбор моделей и опубликуй результаты.";
 
+      renderTable("experiments",
+        ["ID", "Модель", "Параметры", "Текст", "Версия данных", "MAE", "RMSE"],
+        experiments.map((row) => [
+          row.id,
+          row.model === "ridge" ? "Ridge" : "Случайный лес",
+          Object.entries(row.params).map(([key, value]) => `${key}=${value}`).join(", "),
+          row.text ? "Да" : "Нет",
+          row.dataset_sha256.slice(0, 8),
+          fmt.format(row.mae),
+          fmt.format(row.rmse),
+        ]));
       const select = byId("game");
       const previousGame = select.value;
       select.replaceChildren();
