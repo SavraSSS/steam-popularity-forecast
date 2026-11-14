@@ -12,6 +12,8 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
+import time
+
 MONTHS = {
     name: number
     for number, name in enumerate(
@@ -148,27 +150,41 @@ def log_load(appid, started_at, status, received, added, detail=""):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("appid", type=int)
-    parser.add_argument("--save", action="store_true", help="Сохранить историю в SQLite")
+    parser.add_argument("appids", nargs="+", type=int, metavar="appid")
+    parser.add_argument(
+        "--save", action="store_true", help="Сохранить историю в SQLite"
+    )
     args = parser.parse_args()
-    if args.appid <= 0:
+    if any(appid <= 0 for appid in args.appids):
         parser.error("appid должен быть положительным")
 
-    started_at = datetime.now(timezone.utc).isoformat()
-    try:
-        history = fetch_monthly_activity(args.appid)
-    except (requests.RequestException, ValueError) as error:
+    appids = list(dict.fromkeys(args.appids))
+    failed = []
+
+    for index, appid in enumerate(appids):
+        if index > 0:
+            time.sleep(1)
+
+        started_at = datetime.now(timezone.utc).isoformat()
+        try:
+            history = fetch_monthly_activity(appid)
+        except (requests.RequestException, ValueError) as error:
+            if args.save:
+                log_load(appid, started_at, "error", 0, 0, str(error))
+            failed.append(appid)
+            print(f"{appid}: ошибка загрузки — {error}")
+            continue
+
+        print(f"{appid}: месяцев получено — {len(history)}")
+        print(history.tail(5).to_string(index=False))
+
         if args.save:
-            log_load(args.appid, started_at, "error", 0, 0, str(error))
-        parser.exit(1, f"Ошибка загрузки: {error}\n")
+            added = save_monthly_activity(history)
+            log_load(appid, started_at, "ok", len(history), added)
+            print(f"Новых месяцев сохранено: {added}")
 
-    print(f"Месяцев получено: {len(history)}")
-    print(history.tail(5).to_string(index=False))
-
-    if args.save:
-        added = save_monthly_activity(history)
-        log_load(args.appid, started_at, "ok", len(history), added)
-        print(f"Новых месяцев сохранено: {added}")
+    if failed:
+        parser.exit(1, f"Не удалось загрузить игры: {', '.join(map(str, failed))}\n")
 
 
 if __name__ == "__main__":
