@@ -5,16 +5,26 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import RobustScaler
 
-from .compare_review_features import make_features
 from .evaluate_baseline import TARGET, load_splits
 
 
 VALIDATION_YEARS = (2018, 2019, 2020)
 MODELS = ("baseline", "neighbors", "random_forest")
+ACTIVITY_FEATURES = [
+    "Avg_players",
+    "avg_players_lag_1",
+    "avg_players_lag_3",
+    "avg_players_lag_6",
+    "avg_players_roll_3",
+    "avg_players_roll_6",
+]
+TEXT_FEATURES = ["mean_review_words", "mean_review_exclamations"]
 
 
 def steam_features(data):
-    features = make_features(data, include_text=True, include_month=False)
+    activity = np.log1p(data[ACTIVITY_FEATURES])
+    text = np.log1p(data[TEXT_FEATURES].fillna(0))
+    features = activity.join(text)
     online = features["Avg_players"]
     features["peak_to_average"] = np.log1p(data["Peak_Players"]) - online
     features["monthly_momentum"] = online - features["avg_players_lag_1"]
