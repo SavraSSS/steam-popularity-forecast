@@ -128,11 +128,11 @@ def main():
         )
 
     scored = score_releases(releases, history)
-    if not args.demo:
-        write_atomic(
-            ARTIFACTS / "forecast_monitoring.csv",
-            scored.to_csv(index=False).encode("utf-8"),
-        )
+    filename = "forecast_monitoring_demo.csv" if args.demo else "forecast_monitoring.csv"
+    write_atomic(
+        ARTIFACTS / filename,
+        scored.to_csv(index=False).encode("utf-8"),
+    )
 
     columns = [
         "Game_Name", "status", "forecast_players", "actual_players",

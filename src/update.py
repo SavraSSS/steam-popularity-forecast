@@ -3,7 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 import os
-from src.dashboard.server import publish_results
+
 from src.modeling.register_model import REGISTRY
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,10 +52,6 @@ def main():
         run_step("Проверка необходимости переобучения", "src.modeling.retrain_model")
     except subprocess.CalledProcessError as error:
         parser.exit(error.returncode, "\nОбновление прервано. См. ошибку выше.\n")
-    artifacts = ROOT / "artifacts"
-    legacy_files = ("test_metrics.csv", "test_predictions.csv")
-    if all((artifacts / name).is_file() for name in legacy_files):
-        publish_results()
     print("\nОбновление завершено.")
 
 
