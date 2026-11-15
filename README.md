@@ -104,6 +104,9 @@ python -m venv .venv
 ```powershell
 .\.venv\Scripts\python.exe -m src.modeling.monitor_forecasts --demo
 .\.venv\Scripts\python.exe -m src.modeling.retrain_model --demo
+.\.venv\Scripts\python.exe -m src.modeling.feature_comparison
+.\.venv\Scripts\python.exe -m src.modeling.simulate_degradation
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p test_model_registry.py
 ```
 
 Первый сценарий сверяет исторические прогнозы с фактом, второй проверяет

@@ -3,6 +3,7 @@ import csv
 
 import kagglehub
 import pandas as pd
+import numpy as np
 
 from src.ingestion.monthly_storage import read_monthly_activity
 
@@ -89,14 +90,22 @@ def prepare_player(player_df):
         errors="coerce"
     )
 
-    player = player.dropna(
-        subset=[
-            "appid",
-            "Date",
-            "Avg_players",
-            "Peak_Players"
-        ]
+    activity_columns = ["Avg_players", "Peak_Players"]
+    player[activity_columns] = player[activity_columns].apply(
+        pd.to_numeric, errors="coerce"
     )
+
+    average = player["Avg_players"]
+    peak = player["Peak_Players"]
+    valid_activity = (
+        np.isfinite(average)
+        & np.isfinite(peak)
+        & average.ge(0)
+        & peak.ge(average)
+    )
+    print(f"Строк архива с некорректным онлайном: {(~valid_activity).sum()}")
+
+    player = player.loc[valid_activity].dropna(subset=["appid", "Date"]).copy()
 
     player["month"] = (
         player["Date"]
