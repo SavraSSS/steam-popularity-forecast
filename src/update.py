@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 import os
 from src.dashboard.server import publish_results
+from src.modeling.register_model import REGISTRY
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -43,12 +44,18 @@ def main():
             "--save",
         )
         run_step("Пересборка витрины", "src.preprocessing.build_dataset")
-        run_step("Подбор моделей на валидации", "src.modeling.search_models")
-        run_step("Расчёт тестовых метрик", "src.modeling.compare_models")
-        run_step("Прогноз на следующий месяц", "src.modeling.forecast_next_month")
+        if not (REGISTRY / "active.json").exists():
+            run_step("Первичное обучение модели", "src.modeling.register_model")
+
+        run_step("Выпуск прогноза на следующий месяц", "src.modeling.forecast_next_month")
+        run_step("Мониторинг прогнозов", "src.modeling.monitor_forecasts")
+        run_step("Проверка необходимости переобучения", "src.modeling.retrain_model")
     except subprocess.CalledProcessError as error:
         parser.exit(error.returncode, "\nОбновление прервано. См. ошибку выше.\n")
-    publish_results()
+    artifacts = ROOT / "artifacts"
+    legacy_files = ("test_metrics.csv", "test_predictions.csv")
+    if all((artifacts / name).is_file() for name in legacy_files):
+        publish_results()
     print("\nОбновление завершено.")
 
 

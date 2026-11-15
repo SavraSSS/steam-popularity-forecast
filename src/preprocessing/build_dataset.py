@@ -4,11 +4,7 @@ import csv
 import kagglehub
 import pandas as pd
 
-import sqlite3
-from contextlib import closing
-
-from src.ingestion.steam_charts import DATABASE
-
+from src.ingestion.monthly_storage import read_monthly_activity
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
@@ -25,7 +21,7 @@ def load_data():
 
     games_path = Path(
         kagglehub.dataset_download(
-            "fronkongames/steam-games-dataset"
+            "fronkongames/steam-games-dataset/versions/58"
         )
     )
 
@@ -449,20 +445,9 @@ def save_data(dataset, model_dataset):
 
 
 def extend_player_history(player):
-    if not DATABASE.exists():
+    monthly = read_monthly_activity()
+    if monthly.empty:
         return player
-
-    with closing(sqlite3.connect(DATABASE)) as connection:
-        monthly = pd.read_sql_query(
-            """
-            SELECT appid, month, avg_players AS Avg_players,
-                   peak_players AS Peak_Players
-            FROM monthly_activity
-            ORDER BY appid, month
-            """,
-            connection,
-            parse_dates=["month"],
-        )
 
     keys = ["appid", "month"]
     archive_keys = pd.MultiIndex.from_frame(player[keys])

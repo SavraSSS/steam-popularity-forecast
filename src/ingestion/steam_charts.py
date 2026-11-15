@@ -8,11 +8,9 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-import sqlite3
-from contextlib import closing
-from pathlib import Path
-
 import time
+
+from .monthly_storage import log_load, save_monthly_activity
 
 MONTHS = {
     name: number
@@ -22,9 +20,6 @@ MONTHS = {
         start=1,
     )
 }
-
-ROOT = Path(__file__).resolve().parents[2]
-DATABASE = ROOT / "data" / "raw" / "steam_charts.sqlite"
 
 class ActivityTableParser(HTMLParser):
     def __init__(self):
@@ -100,59 +95,13 @@ def fetch_monthly_activity(appid):
 
     return pd.DataFrame(records).sort_values("month").reset_index(drop=True)
 
-def save_monthly_activity(history):
-    DATABASE.parent.mkdir(parents=True, exist_ok=True)
-    records = [
-        (int(row.appid), row.month.isoformat(), float(row.Avg_players), int(row.Peak_Players))
-        for row in history.itertuples(index=False)
-    ]
-
-    with closing(sqlite3.connect(DATABASE)) as connection:
-        with connection:
-            connection.execute("""
-                CREATE TABLE IF NOT EXISTS monthly_activity (
-                    appid INTEGER NOT NULL,
-                    month TEXT NOT NULL,
-                    avg_players REAL NOT NULL,
-                    peak_players INTEGER NOT NULL,
-                    PRIMARY KEY (appid, month)
-                )
-            """)
-            result = connection.executemany("""
-                INSERT INTO monthly_activity (appid, month, avg_players, peak_players)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT (appid, month) DO NOTHING
-            """, records)
-            return result.rowcount
-
-def log_load(appid, started_at, status, received, added, detail=""):
-    DATABASE.parent.mkdir(parents=True, exist_ok=True)
-
-    with closing(sqlite3.connect(DATABASE)) as connection:
-        with connection:
-            connection.execute("""
-                CREATE TABLE IF NOT EXISTS load_log (
-                    id INTEGER PRIMARY KEY,
-                    started_at TEXT NOT NULL,
-                    appid INTEGER NOT NULL,
-                    status TEXT NOT NULL,
-                    received INTEGER NOT NULL,
-                    added INTEGER NOT NULL,
-                    detail TEXT NOT NULL
-                )
-            """)
-            connection.execute("""
-                INSERT INTO load_log
-                    (started_at, appid, status, received, added, detail)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (started_at, appid, status, received, added, detail))
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("appids", nargs="+", type=int, metavar="appid")
     parser.add_argument(
-        "--save", action="store_true", help="Сохранить историю в SQLite"
+        "--save", action="store_true", help="Сохранить историю в Parquet"
     )
     args = parser.parse_args()
     if any(appid <= 0 for appid in args.appids):
