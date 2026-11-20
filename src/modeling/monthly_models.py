@@ -34,7 +34,7 @@ def steam_features(data):
     return features
 
 
-def fit_model(name, train):
+def fit_model(name, train, feature_builder=steam_features):
     if name == "baseline":
         return None
     if name == "neighbors":
@@ -50,15 +50,15 @@ def fit_model(name, train):
         raise ValueError(f"Неизвестная модель: {name}")
 
     growth = np.log1p(train[TARGET]) - np.log1p(train["Avg_players"])
-    return model.fit(steam_features(train), growth)
+    return model.fit(feature_builder(train), growth)
 
 
-def predict_players(model, data):
+def predict_players(model, data, feature_builder=steam_features):
     current = data["Avg_players"]
     if model is None:
         return current
 
-    growth = model.predict(steam_features(data))
+    growth = model.predict(feature_builder(data))
     return np.expm1(np.log1p(current) + growth).clip(lower=0)
 
 
@@ -73,7 +73,7 @@ def metrics(rows):
     }
 
 
-def validate_models(data):
+def validate_models(data, models=MODELS, feature_builder=steam_features):
     target_month = data["month"] + pd.offsets.MonthBegin(1)
     results = []
 
@@ -85,10 +85,10 @@ def validate_models(data):
         if train.empty or validation.empty:
             raise ValueError(f"Недостаточно данных для окна {year}")
 
-        for name in MODELS:
-            model = fit_model(name, train)
+        for name in models:
+            model = fit_model(name, train, feature_builder)
             rows = validation[["appid", TARGET]].copy()
-            rows["prediction"] = predict_players(model, validation)
+            rows["prediction"] = predict_players(model, validation, feature_builder)
             results.append(rows.assign(model=name, year=year))
 
     return pd.concat(results, ignore_index=True)
